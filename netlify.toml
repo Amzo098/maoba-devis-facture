@@ -1,0 +1,13 @@
+# Configuration Netlify.
+# Le site est 100 % statique (HTML/CSS/JS), il n'y a donc rien à "construire".
+# On publie simplement le dossier racine tel quel.
+[build]
+  publish = "."
+  command = ""
+
+# Petites en-têtes utiles : on met en cache la librairie PDF (qui ne change pas)
+# pour accélérer les visites suivantes, surtout sur connexion lente.
+[[headers]]
+  for = "/vendor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

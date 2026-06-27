@@ -1,0 +1,9 @@
+# Dépendances éventuelles (le projet n'en a pas besoin pour tourner)
+node_modules/
+
+# Dossiers Netlify locaux
+.netlify/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
