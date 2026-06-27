@@ -650,6 +650,8 @@
   $("btn-pdf").addEventListener("click", function () {
     var doc = rassemblerDocument();
     if (!documentValide(doc)) return;
+    // Au-delà de 5 documents, la connexion devient nécessaire pour en créer un nouveau.
+    if (!peutCreerDocument()) { ouvrirConnexion(true); return; }
     var btn = $("btn-pdf");
     if (btn.disabled) return;             // évite les double-clics
     var libelle = btn.textContent;
@@ -690,6 +692,8 @@
   $("btn-whatsapp").addEventListener("click", function () {
     var doc = rassemblerDocument();
     if (!documentValide(doc)) return;
+    // Au-delà de 5 documents, la connexion devient nécessaire pour en créer un nouveau.
+    if (!peutCreerDocument()) { ouvrirConnexion(true); return; }
 
     // A3 : on a besoin d'un numéro de client valide pour pouvoir lui envoyer.
     var etatTel = validerTelClient(doc.client.tel);
@@ -745,9 +749,11 @@
   // l'historique, et on prépare un nouveau numéro.
   function finaliserDocument(doc) {
     incrementerCompteur();
-    ajouterHistorique(doc);
+    var item = ajouterHistorique(doc);
     $("doc-numero")._modifie = false;
     $("doc-numero").value = prochainNumero();
+    // Si l'utilisateur est connecté, on sauvegarde aussi le document en ligne.
+    if (estConnecte()) pousserDocument(item);
   }
 
   /* ========================================================
@@ -760,7 +766,7 @@
 
   function ajouterHistorique(doc) {
     var histo = chargerHistorique();
-    histo.unshift({
+    var item = {
       id: Date.now(),
       doc: doc,
       apercu: {
@@ -769,11 +775,14 @@
         client: doc.client.nom,
         date: doc.date,
         total: doc.total
-      }
-    });
+      },
+      synced: false // pas encore envoyé en ligne (utile quand l'utilisateur est connecté)
+    };
+    histo.unshift(item);
     // On garde les 50 derniers pour ne pas saturer le stockage du téléphone.
     if (histo.length > 50) histo = histo.slice(0, 50);
     localStorage.setItem(CLE_HISTORIQUE, JSON.stringify(histo));
+    return item;
   }
 
   function afficherHistorique() {
@@ -913,7 +922,287 @@
   }
 
   /* ========================================================
-     14) DÉMARRAGE
+     14) CONNEXION EN LIGNE & SYNCHRONISATION (Supabase Auth)
+     --------------------------------------------------------
+     Logique : les 5 premiers documents sont 100% locaux (aucune connexion).
+     Pour créer le 6ème, l'utilisateur doit se connecter gratuitement par email.
+     Une fois connecté, sa fiche entreprise et ses documents sont sauvegardés en
+     ligne et le suivent sur n'importe quel téléphone.
+     ======================================================== */
+  var LIMITE_LOCALE = 5;     // nombre de documents créables sans connexion
+  var sb = null;             // client Supabase
+  var utilisateur = null;    // utilisateur connecté (ou null)
+  var emailEnCours = "";     // email saisi à l'étape 1, réutilisé pour vérifier le code
+  var connexionTraitee = false; // évite de relancer la synchro à chaque rafraîchissement de jeton
+
+  function initSupabase() {
+    if (!sb && window.supabase) {
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      });
+    }
+    return sb;
+  }
+
+  function estConnecte() { return !!utilisateur; }
+
+  // Nombre de documents déjà créés (le compteur sert aussi à numéroter DEVIS-001…).
+  function nombreDocsCrees() {
+    return parseInt(localStorage.getItem(CLE_COMPTEUR) || "0", 10);
+  }
+
+  // Peut-on créer un nouveau document ? Oui si connecté, ou si on est encore sous la limite.
+  function peutCreerDocument() {
+    return estConnecte() || nombreDocsCrees() < LIMITE_LOCALE;
+  }
+
+  // Ouvre l'écran de connexion. "force" = vrai quand on a atteint la limite des 5.
+  function ouvrirConnexion(force) {
+    $("connexion-etape-email").hidden = false;
+    $("connexion-etape-code").hidden = true;
+    $("conn-erreur").hidden = true;
+    $("conn-erreur-code").hidden = true;
+    if (force) {
+      $("connexion-titre").textContent = "Vous avez déjà créé 5 documents 🎉";
+      $("connexion-message").textContent =
+        "Pour continuer à créer des devis et factures sans jamais rien perdre, connectez-vous gratuitement avec votre email.";
+    } else {
+      $("connexion-titre").textContent = "Sauvegardez vos documents ☁️";
+      $("connexion-message").textContent =
+        "Connectez-vous avec votre email pour retrouver vos devis sur tous vos téléphones, sans jamais rien perdre.";
+    }
+    $("connexion").hidden = false;
+  }
+
+  // Met à jour l'apparence du bouton nuage selon l'état de connexion.
+  function majBoutonCompte() {
+    var btn = $("btn-compte");
+    if (estConnecte()) {
+      btn.classList.add("connecte");
+      btn.textContent = "✅";
+      btn.title = "Connecté : " + (utilisateur.email || "");
+    } else {
+      btn.classList.remove("connecte");
+      btn.textContent = "☁️";
+      btn.title = "Sauvegarder en ligne";
+    }
+  }
+
+  // Étape 1 : envoyer le code / lien par email.
+  $("conn-envoyer").addEventListener("click", function () {
+    var email = $("conn-email").value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      $("conn-erreur").textContent = "Entrez un email valide.";
+      $("conn-erreur").hidden = false;
+      return;
+    }
+    if (!initSupabase()) { toast("Connexion impossible hors-ligne. Réessayez avec internet."); return; }
+    var btn = this, libelle = btn.textContent;
+    btn.disabled = true; btn.textContent = "Envoi…";
+    emailEnCours = email;
+    sb.auth.signInWithOtp({
+      email: email,
+      options: { emailRedirectTo: location.href.split("#")[0], shouldCreateUser: true }
+    }).then(function (res) {
+      btn.disabled = false; btn.textContent = libelle;
+      if (res.error) {
+        $("conn-erreur").textContent = messageErreurEnvoi(res.error);
+        $("conn-erreur").hidden = false;
+        return;
+      }
+      $("conn-email-affiche").textContent = email;
+      $("connexion-etape-email").hidden = true;
+      $("connexion-etape-code").hidden = false;
+    });
+  });
+
+  // Étape 2 : vérifier le code à 6 chiffres saisi.
+  $("conn-valider-code").addEventListener("click", function () {
+    var code = $("conn-code").value.trim();
+    if (!/^\d{6}$/.test(code)) {
+      $("conn-erreur-code").textContent = "Le code est composé de 6 chiffres.";
+      $("conn-erreur-code").hidden = false;
+      return;
+    }
+    var btn = this, libelle = btn.textContent;
+    btn.disabled = true; btn.textContent = "Vérification…";
+    sb.auth.verifyOtp({ email: emailEnCours, token: code, type: "email" }).then(function (res) {
+      btn.disabled = false; btn.textContent = libelle;
+      if (res.error) {
+        $("conn-erreur-code").textContent = "Code incorrect ou expiré. Réessayez.";
+        $("conn-erreur-code").hidden = false;
+        return;
+      }
+      // Succès : onAuthStateChange s'occupe de la suite (fermeture + synchro).
+    });
+  });
+
+  $("conn-renvoyer").addEventListener("click", function () {
+    if (!emailEnCours || !sb) return;
+    sb.auth.signInWithOtp({
+      email: emailEnCours,
+      options: { emailRedirectTo: location.href.split("#")[0], shouldCreateUser: true }
+    }).then(function () { toast("Nouveau code envoyé 📧"); });
+  });
+
+  $("conn-plus-tard").addEventListener("click", function () { $("connexion").hidden = true; });
+
+  // Bouton nuage de l'en-tête : ouvre la connexion, ou propose de se déconnecter.
+  $("btn-compte").addEventListener("click", function () {
+    if (estConnecte()) {
+      confirmer("Connecté avec " + (utilisateur.email || "votre email") +
+        ".\nSe déconnecter ? Vos documents restent sur ce téléphone.", function () {
+        if (sb) sb.auth.signOut();
+      });
+    } else {
+      ouvrirConnexion(false);
+    }
+  });
+
+  function messageErreurEnvoi(error) {
+    var m = (error && error.message) || "";
+    if (/rate|seconds|too many/i.test(m)) return "Trop d'essais. Patientez une minute avant de réessayer.";
+    return "Envoi impossible. Vérifiez votre email et votre connexion.";
+  }
+
+  // Appelé dès qu'une session est active (code validé OU lien de l'email cliqué).
+  function onConnexionReussie(user) {
+    utilisateur = user;
+    majBoutonCompte();
+    $("connexion").hidden = true;
+    if (connexionTraitee) return; // déjà synchronisé pour cette session
+    connexionTraitee = true;
+    toast("Connecté ✅ Sauvegarde en ligne activée.");
+    synchroniser();
+  }
+
+  // Construit la ligne "document" à envoyer en base à partir d'un élément d'historique.
+  function ligneDocument(item) {
+    return {
+      user_id: utilisateur.id,
+      doc_id: String(item.id),
+      type: item.doc.type,
+      numero: item.doc.numero,
+      date: item.doc.date,
+      client_nom: item.doc.client.nom,
+      total: item.doc.total,
+      contenu: item
+    };
+  }
+
+  // Pousse un seul document en ligne (après création, si connecté).
+  function pousserDocument(item) {
+    if (!sb || !utilisateur) return;
+    sb.from("maoba_documents").upsert(ligneDocument(item), { onConflict: "user_id,doc_id" })
+      .then(function (res) {
+        if (res.error) return; // restera "non synchronisé", repoussé au prochain démarrage
+        marquerSynced(item.id);
+        // On tient aussi le compteur à jour en ligne (continuité de la numérotation).
+        sb.from("maoba_entreprises").update({
+          compteur: nombreDocsCrees(),
+          updated_at: new Date().toISOString()
+        }).eq("user_id", utilisateur.id).then(function () {});
+      });
+  }
+
+  function marquerSynced(id) {
+    var histo = chargerHistorique();
+    histo.forEach(function (it) { if (it.id === id) it.synced = true; });
+    localStorage.setItem(CLE_HISTORIQUE, JSON.stringify(histo));
+  }
+
+  // Synchronisation complète : fusionne le local et le distant dans les deux sens.
+  function synchroniser() {
+    if (!sb || !utilisateur) return;
+    var uid = utilisateur.id;
+    Promise.all([
+      sb.from("maoba_entreprises").select("*").eq("user_id", uid).maybeSingle(),
+      sb.from("maoba_documents").select("*").eq("user_id", uid)
+    ]).then(function (reps) {
+      var entDistante = reps[0].data;
+      var docsDistants = reps[1].data || [];
+
+      // --- Fiche entreprise : on garde le local s'il existe, sinon on adopte le distant ---
+      var entLocale = chargerEntreprise();
+      var compteur = nombreDocsCrees();
+      if (entDistante) {
+        var fusionEnt = {
+          nom: entLocale.nom || entDistante.nom || "",
+          tel: entLocale.tel || entDistante.tel || "",
+          adresse: entLocale.adresse || entDistante.adresse || "",
+          logo: entLocale.logo || entDistante.logo || ""
+        };
+        sauverEntreprise(fusionEnt);
+        remplirChampsEntreprise(fusionEnt);
+        logoDataUrl = fusionEnt.logo || "";
+        compteur = Math.max(compteur, entDistante.compteur || 0);
+      }
+
+      // --- Documents : union par identifiant (doc_id) ---
+      var parId = {};
+      chargerHistorique().forEach(function (it) { parId[String(it.id)] = it; });
+      docsDistants.forEach(function (d) {
+        if (!parId[d.doc_id] && d.contenu) {
+          d.contenu.synced = true;
+          parId[d.doc_id] = d.contenu;
+        }
+      });
+      var fusionDocs = Object.keys(parId).map(function (k) { return parId[k]; });
+      fusionDocs.sort(function (a, b) { return (b.id || 0) - (a.id || 0); });
+      if (fusionDocs.length > 50) fusionDocs = fusionDocs.slice(0, 50);
+
+      // Le compteur doit refléter au moins le nombre total de documents connus.
+      compteur = Math.max(compteur, fusionDocs.length);
+      localStorage.setItem(CLE_COMPTEUR, String(compteur));
+      localStorage.setItem(CLE_HISTORIQUE, JSON.stringify(fusionDocs));
+
+      // --- On pousse en ligne tout ce que le serveur n'a pas encore ---
+      var entAEnvoyer = chargerEntreprise();
+      sb.from("maoba_entreprises").upsert({
+        user_id: uid,
+        nom: entAEnvoyer.nom || "",
+        tel: entAEnvoyer.tel || "",
+        adresse: entAEnvoyer.adresse || "",
+        logo: entAEnvoyer.logo || "",
+        compteur: compteur,
+        updated_at: new Date().toISOString()
+      }).then(function () {});
+
+      if (fusionDocs.length) {
+        sb.from("maoba_documents").upsert(fusionDocs.map(ligneDocument), { onConflict: "user_id,doc_id" })
+          .then(function (res) {
+            if (!res.error) {
+              fusionDocs.forEach(function (it) { it.synced = true; });
+              localStorage.setItem(CLE_HISTORIQUE, JSON.stringify(fusionDocs));
+            }
+          });
+      }
+
+      // On rafraîchit l'affichage (numéro proposé) sans déranger l'utilisateur.
+      if (!$("doc-numero")._modifie) $("doc-numero").value = prochainNumero();
+    }).catch(function () { /* hors-ligne : on réessaiera au prochain démarrage */ });
+  }
+
+  function initAuth() {
+    if (!initSupabase()) return; // librairie non chargée (hors-ligne) : l'app reste utilisable en local
+    sb.auth.onAuthStateChange(function (event, session) {
+      if (session && session.user) {
+        onConnexionReussie(session.user);
+      } else if (event === "SIGNED_OUT") {
+        utilisateur = null;
+        connexionTraitee = false;
+        majBoutonCompte();
+        toast("Déconnecté. Vos documents restent sur ce téléphone.");
+      }
+    });
+    // Session déjà existante (l'utilisateur s'était déjà connecté) ?
+    sb.auth.getSession().then(function (res) {
+      if (res.data.session && res.data.session.user) onConnexionReussie(res.data.session.user);
+    });
+  }
+
+  /* ========================================================
+     15) DÉMARRAGE
      ======================================================== */
   function demarrer() {
     chargerTheme();
@@ -926,6 +1215,8 @@
     majTotaux();
     afficherAccueilSiBesoin();
     reessayerContactEnAttente(); // A6 : renvoi silencieux d'un contact resté en attente
+    majBoutonCompte();
+    initAuth();                  // connexion en ligne (Partie B)
   }
 
   demarrer();
