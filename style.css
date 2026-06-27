@@ -290,6 +290,23 @@ button { cursor: pointer; font-family: inherit; }
 .carte-accueil .btn-principal { margin-top: 18px; }
 .erreur { color: var(--rouge); font-weight: 600; font-size: 15px; }
 
+/* ---------- Boîtes de dialogue centrées (confirmation, aide WhatsApp) ---------- */
+.overlay-centre { align-items: center; padding: 20px; }
+.carte-dialogue {
+  background: var(--carte);
+  width: 100%;
+  max-width: 420px;
+  border-radius: 18px;
+  padding: 22px 20px;
+}
+.carte-dialogue h2 { margin: 0 0 8px; font-size: 20px; }
+.carte-dialogue p { font-size: 17px; margin: 0 0 16px; }
+.dialogue-actions { display: flex; gap: 10px; }
+.dialogue-actions button { flex: 1; }
+.etapes { padding-left: 0; list-style: none; margin: 0 0 18px; }
+.etapes li { padding: 8px 0; font-size: 16px; border-top: 1px solid var(--bord); }
+.etapes li:first-child { border-top: none; }
+
 /* ---------- Historique ---------- */
 .entete-panneau { display: flex; justify-content: space-between; align-items: center; }
 .btn-fermer { background: none; border: none; font-size: 24px; color: var(--gris-doux); }

@@ -23,6 +23,7 @@
   var CLE_COMPTEUR = "maoba_compteur";
   var CLE_HISTORIQUE = "maoba_historique";
   var CLE_CONFIG_FAITE = "maoba_config_faite";
+  var CLE_CONTACT_PENDING = "maoba_contact_en_attente"; // contact non encore envoyé à Maoba
 
   /* ---------- État du document en cours ---------- */
   // On garde un objet simple en mémoire ; il est reconstruit depuis le DOM
@@ -41,12 +42,40 @@
     return n.toLocaleString("fr-FR").replace(/ /g, " ") + " GNF";
   }
 
+  // Ne garde que les chiffres d'une saisie ("1 250 000", "1.250.000 GNF"...) -> 1250000.
+  function nombreDepuisTexte(str) {
+    var chiffres = String(str == null ? "" : str).replace(/\D/g, "");
+    return chiffres ? parseInt(chiffres, 10) : 0;
+  }
+
+  // Affiche un nombre avec des espaces tous les 3 chiffres : 1250000 -> "1 250 000".
+  function formaterMilliers(n) {
+    return (Number(n) || 0).toLocaleString("fr-FR");
+  }
+
   function toast(message) {
     var t = $("toast");
     t.textContent = message;
     t.hidden = false;
     clearTimeout(t._minuteur);
     t._minuteur = setTimeout(function () { t.hidden = true; }, 2600);
+  }
+
+  // Boîte de confirmation réutilisable. Affiche un texte et deux boutons clairs ;
+  // appelle "onOui" seulement si l'utilisateur confirme. Évite le window.confirm()
+  // (peu personnalisable et parfois mal rendu sur mobile).
+  function confirmer(texte, onOui) {
+    $("confirmation-texte").textContent = texte;
+    $("confirmation").hidden = false;
+    function fermer() {
+      $("confirmation").hidden = true;
+      $("confirmation-oui").removeEventListener("click", oui);
+      $("confirmation-non").removeEventListener("click", non);
+    }
+    function oui() { fermer(); onOui(); }
+    function non() { fermer(); }
+    $("confirmation-oui").addEventListener("click", oui);
+    $("confirmation-non").addEventListener("click", non);
   }
 
   /* ========================================================
@@ -84,9 +113,13 @@
     toast("Bienvenue ! Tout est prêt 🎉");
   });
 
-  // Envoie le contact à Supabase. En cas d'échec (pas de réseau), on ignore
-  // silencieusement : l'outil doit marcher hors-ligne.
+  // Envoie le contact à Supabase. En cas d'échec (pas de réseau), on n'embête JAMAIS
+  // l'utilisateur ; on mémorise simplement le contact "en attente" et on réessaiera
+  // tout seul au prochain démarrage, jusqu'à ce que l'envoi réussisse une fois (A6).
   function envoyerContactMaoba(nom, tel, ville) {
+    var contact = { nom_entreprise: nom, telephone: tel, ville: ville || null };
+    // On note l'envoi comme "en attente" tant qu'il n'a pas réussi.
+    localStorage.setItem(CLE_CONTACT_PENDING, JSON.stringify(contact));
     try {
       fetch(SUPABASE_URL + "/rest/v1/maoba_devis_contacts", {
         method: "POST",
@@ -96,13 +129,22 @@
           "Content-Type": "application/json",
           "Prefer": "return=minimal"
         },
-        body: JSON.stringify({
-          nom_entreprise: nom,
-          telephone: tel,
-          ville: ville || null
-        })
-      }).catch(function () { /* hors-ligne : on ignore */ });
-    } catch (e) { /* on ignore */ }
+        body: JSON.stringify(contact)
+      }).then(function (rep) {
+        // Réussi : on retire l'attente pour ne pas renvoyer en double.
+        if (rep && rep.ok) localStorage.removeItem(CLE_CONTACT_PENDING);
+      }).catch(function () { /* hors-ligne : on réessaiera au prochain démarrage */ });
+    } catch (e) { /* on réessaiera au prochain démarrage */ }
+  }
+
+  // Au démarrage : s'il reste un contact non envoyé, on retente discrètement.
+  function reessayerContactEnAttente() {
+    var enAttente = localStorage.getItem(CLE_CONTACT_PENDING);
+    if (!enAttente) return;
+    try {
+      var c = JSON.parse(enAttente);
+      envoyerContactMaoba(c.nom_entreprise, c.telephone, c.ville);
+    } catch (e) { /* donnée corrompue : on ignore */ }
   }
 
   /* ========================================================
@@ -144,19 +186,49 @@
     });
   }
 
-  // Upload du logo : on le convertit en image encodée pour le stocker et l'imprimer.
+  // Upload du logo : on lit l'image, puis on la REDIMENSIONNE et la compresse côté
+  // navigateur (largeur max 500px) avant de la stocker. Une photo de logo prise au
+  // téléphone fait souvent plusieurs Mo : sans cette étape, elle ralentirait l'app
+  // et pourrait casser la génération du PDF. Tout cela est invisible pour l'utilisateur.
   $("ent-logo").addEventListener("change", function (e) {
     var fichier = e.target.files[0];
     if (!fichier) return;
     var lecteur = new FileReader();
     lecteur.onload = function (ev) {
-      logoDataUrl = ev.target.result;
-      $("apercu-logo").src = logoDataUrl;
-      $("apercu-logo").hidden = false;
-      $("retirer-logo").hidden = false;
-      var ent = chargerEntreprise();
-      ent.logo = logoDataUrl;
-      sauverEntreprise(ent);
+      var img = new Image();
+      img.onload = function () {
+        var maxLargeur = 500;
+        var ratio = Math.min(1, maxLargeur / img.width);
+        var l = Math.round(img.width * ratio);
+        var h = Math.round(img.height * ratio);
+        var canvas = document.createElement("canvas");
+        canvas.width = l;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        // Fond blanc : les logos transparents (PNG) restent nets sur le papier blanc du PDF.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, l, h);
+        ctx.drawImage(img, 0, 0, l, h);
+        // JPEG qualité 0.85 : bon compromis netteté / poids.
+        logoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        $("apercu-logo").src = logoDataUrl;
+        $("apercu-logo").hidden = false;
+        $("retirer-logo").hidden = false;
+        var ent = chargerEntreprise();
+        ent.logo = logoDataUrl;
+        sauverEntreprise(ent);
+      };
+      // Si l'image est illisible, on garde la donnée brute par sécurité.
+      img.onerror = function () {
+        logoDataUrl = ev.target.result;
+        $("apercu-logo").src = logoDataUrl;
+        $("apercu-logo").hidden = false;
+        $("retirer-logo").hidden = false;
+        var ent = chargerEntreprise();
+        ent.logo = logoDataUrl;
+        sauverEntreprise(ent);
+      };
+      img.src = ev.target.result;
     };
     lecteur.readAsDataURL(fichier);
   });
@@ -233,7 +305,9 @@
         '<div><label>Quantité</label>' +
           '<input class="qte" type="number" inputmode="numeric" min="0" value="1" /></div>' +
         '<div><label>Prix unitaire (GNF)</label>' +
-          '<input class="prix" type="number" inputmode="numeric" min="0" placeholder="0" /></div>' +
+          // Champ texte (et non "number") pour pouvoir afficher les milliers avec
+          // des espaces pendant la frappe : 1 250 000, plus lisible et moins d'erreurs.
+          '<input class="prix" type="text" inputmode="numeric" placeholder="0" /></div>' +
       '</div>' +
       '<div class="categorie">' +
         '<button type="button" class="cat-btn" data-cat="Matériaux">Matériaux</button>' +
@@ -247,7 +321,7 @@
     // Pré-remplissage (utile pour la duplication depuis l'historique).
     div.querySelector(".desc").value = donnees.desc || "";
     div.querySelector(".qte").value = donnees.qte != null ? donnees.qte : 1;
-    div.querySelector(".prix").value = donnees.prix != null ? donnees.prix : "";
+    div.querySelector(".prix").value = donnees.prix ? formaterMilliers(donnees.prix) : "";
     if (donnees.categorie) {
       div.querySelectorAll(".cat-btn").forEach(function (b) {
         if (b.dataset.cat === donnees.categorie) b.classList.add("actif");
@@ -256,7 +330,14 @@
 
     // Recalcul à chaque frappe.
     div.querySelector(".qte").addEventListener("input", function () { majLigne(div); });
-    div.querySelector(".prix").addEventListener("input", function () { majLigne(div); });
+    // Pour le prix : on reformate la saisie avec des espaces (milliers) en gardant
+    // le curseur à la fin, puis on recalcule.
+    div.querySelector(".prix").addEventListener("input", function () {
+      var champ = this;
+      var n = nombreDepuisTexte(champ.value);
+      champ.value = n ? formaterMilliers(n) : "";
+      majLigne(div);
+    });
 
     // Catégorie facultative : on peut activer / désactiver d'un clic.
     div.querySelectorAll(".cat-btn").forEach(function (b) {
@@ -279,7 +360,7 @@
 
   function majLigne(div) {
     var qte = Number(div.querySelector(".qte").value) || 0;
-    var prix = Number(div.querySelector(".prix").value) || 0;
+    var prix = nombreDepuisTexte(div.querySelector(".prix").value);
     div.querySelector(".article-total").textContent = gnf(qte * prix);
     majTotaux();
   }
@@ -290,7 +371,7 @@
     listeArticles.querySelectorAll(".article").forEach(function (div) {
       var desc = div.querySelector(".desc").value.trim();
       var qte = Number(div.querySelector(".qte").value) || 0;
-      var prix = Number(div.querySelector(".prix").value) || 0;
+      var prix = nombreDepuisTexte(div.querySelector(".prix").value);
       var catBtn = div.querySelector(".cat-btn.actif");
       if (desc === "" && prix === 0) return; // on ignore les lignes vides
       res.push({
@@ -414,8 +495,12 @@
     // --- Logo (optionnel) ---
     if (doc.entreprise.logo) {
       try {
-        // On limite la hauteur à 22mm en gardant les proportions approximatives.
-        pdf.addImage(doc.entreprise.logo, "PNG", L, y - 4, 0, 22);
+        // On calcule la largeur réelle pour garder les proportions, hauteur fixée à 22mm.
+        var props = pdf.getImageProperties(doc.entreprise.logo);
+        var hLogo = 22;
+        var lLogo = props.width * (hLogo / props.height);
+        if (lLogo > 60) { lLogo = 60; hLogo = props.height * (lLogo / props.width); }
+        pdf.addImage(doc.entreprise.logo, L, y - 4, lLogo, hLogo);
       } catch (e) { /* format d'image non géré : on continue sans */ }
     }
 
@@ -565,20 +650,65 @@
   $("btn-pdf").addEventListener("click", function () {
     var doc = rassemblerDocument();
     if (!documentValide(doc)) return;
-    var pdf = genererPdf(doc);
-    pdf.save(nomFichier(doc));
-    finaliserDocument(doc);
-    toast("PDF téléchargé ✅");
+    var btn = $("btn-pdf");
+    if (btn.disabled) return;             // évite les double-clics
+    var libelle = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Génération en cours…";
+    // setTimeout : laisse le navigateur afficher l'état "en cours" avant le travail.
+    setTimeout(function () {
+      try {
+        var pdf = genererPdf(doc);
+        pdf.save(nomFichier(doc));
+        finaliserDocument(doc);
+        toast("PDF téléchargé ✅");
+      } finally {
+        btn.disabled = false;
+        btn.textContent = libelle;
+      }
+    }, 30);
   });
+
+  // Vérifie le numéro du client avant l'envoi WhatsApp.
+  // Renvoie "vide", "invalide" ou "ok".
+  function validerTelClient(tel) {
+    var brut = (tel || "").trim();
+    if (!brut) return "vide";
+    if (/[a-zA-Z]/.test(brut)) return "invalide";
+    var chiffres = brut.replace(/\D/g, "");
+    if (chiffres.length < 8) return "invalide"; // un mobile guinéen fait 9 chiffres
+    return "ok";
+  }
+
+  // Construit le lien wa.me vers le client (préfixe pays Guinée 224 si absent).
+  function lienWhatsAppClient(doc) {
+    var chiffres = (doc.client.tel || "").replace(/\D/g, "");
+    if (chiffres.indexOf("224") !== 0) chiffres = "224" + chiffres;
+    return "https://wa.me/" + chiffres + "?text=" + encodeURIComponent(resumeWhatsApp(doc));
+  }
 
   $("btn-whatsapp").addEventListener("click", function () {
     var doc = rassemblerDocument();
     if (!documentValide(doc)) return;
+
+    // A3 : on a besoin d'un numéro de client valide pour pouvoir lui envoyer.
+    var etatTel = validerTelClient(doc.client.tel);
+    if (etatTel === "vide") {
+      toast("Ajoutez le numéro du client pour pouvoir lui envoyer directement.");
+      $("cli-tel").focus();
+      return;
+    }
+    if (etatTel === "invalide") {
+      toast("Le numéro du client semble incorrect. Vérifiez-le.");
+      $("cli-tel").focus();
+      return;
+    }
+
     var pdf = genererPdf(doc);
     var fichier = new File([pdf.output("blob")], nomFichier(doc), { type: "application/pdf" });
 
-    // Si le téléphone sait partager un fichier (Android récent), on partage le PDF
-    // directement : l'utilisateur choisit WhatsApp dans la liste.
+    // Cas idéal : le téléphone sait partager un fichier (Android récent).
+    // On partage le PDF directement, l'utilisateur choisit WhatsApp dans la liste.
     if (navigator.canShare && navigator.canShare({ files: [fichier] })) {
       navigator.share({
         files: [fichier],
@@ -586,18 +716,21 @@
         text: resumeWhatsApp(doc)
       }).then(function () {
         finaliserDocument(doc);
-      }).catch(function () { /* annulé par l'utilisateur */ });
-    } else {
-      // Solution de repli : on télécharge le PDF puis on ouvre WhatsApp avec un
-      // résumé écrit. L'utilisateur joindra le PDF depuis ses fichiers.
-      pdf.save(nomFichier(doc));
-      finaliserDocument(doc);
-      var tel = (doc.client.tel || "").replace(/\D/g, "");
-      var url = "https://wa.me/" + (tel ? "224" + tel.replace(/^224/, "") : "") +
-        "?text=" + encodeURIComponent(resumeWhatsApp(doc));
-      window.open(url, "_blank");
-      toast("PDF téléchargé. Joignez-le dans WhatsApp 📎");
+      }).catch(function () { /* annulé par l'utilisateur : on ne fait rien */ });
+      return;
     }
+
+    // A2 : solution de repli expliquée pas à pas pour un débutant.
+    // On télécharge le PDF, on montre les étapes, puis on ouvre la discussion du client.
+    pdf.save(nomFichier(doc));
+    finaliserDocument(doc);
+    var url = lienWhatsAppClient(doc);
+    $("whatsapp-aide").hidden = false;
+    $("whatsapp-continuer").onclick = function () {
+      $("whatsapp-aide").hidden = true;
+      window.open(url, "_blank");
+    };
+    $("whatsapp-fermer").onclick = function () { $("whatsapp-aide").hidden = true; };
   });
 
   function resumeWhatsApp(doc) {
@@ -717,7 +850,7 @@
   /* ========================================================
      12) NOUVEAU DOCUMENT (vider le client, garder l'entreprise)
      ======================================================== */
-  $("btn-nouveau").addEventListener("click", function () {
+  function viderDocumentEnCours() {
     ["cli-nom", "cli-tel", "cli-adresse", "remise-valeur", "acompte-valeur"].forEach(function (id) {
       $(id).value = "";
     });
@@ -729,6 +862,21 @@
     majTotaux();
     window.scrollTo({ top: 0, behavior: "smooth" });
     toast("Nouveau document prêt 🆕");
+  }
+
+  // Y a-t-il quelque chose à perdre ? (client renseigné, ou un article avec un prix)
+  function documentEnCoursRempli() {
+    if ($("cli-nom").value.trim() || $("cli-tel").value.trim() || $("cli-adresse").value.trim()) return true;
+    return lireArticles().some(function (a) { return a.prix > 0; });
+  }
+
+  $("btn-nouveau").addEventListener("click", function () {
+    // On ne dérange l'utilisateur avec une confirmation que s'il a déjà saisi des infos.
+    if (documentEnCoursRempli()) {
+      confirmer("Effacer ce document en cours ? Vos infos d'entreprise seront gardées.", viderDocumentEnCours);
+    } else {
+      viderDocumentEnCours();
+    }
   });
 
   /* ========================================================
@@ -777,6 +925,7 @@
     creerLigneArticle(); // une première ligne vide prête à l'emploi
     majTotaux();
     afficherAccueilSiBesoin();
+    reessayerContactEnAttente(); // A6 : renvoi silencieux d'un contact resté en attente
   }
 
   demarrer();

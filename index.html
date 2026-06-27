@@ -188,6 +188,33 @@
     </div>
   </div>
 
+  <!-- ====== BOÎTE DE CONFIRMATION GÉNÉRIQUE ====== -->
+  <div id="confirmation" class="overlay overlay-centre" hidden>
+    <div class="carte-dialogue">
+      <p id="confirmation-texte">Confirmer ?</p>
+      <div class="dialogue-actions">
+        <button id="confirmation-non" class="btn-secondaire" type="button">Annuler</button>
+        <button id="confirmation-oui" class="btn-principal" type="button">Confirmer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== INSTRUCTIONS WHATSAPP (repli si partage direct impossible) ====== -->
+  <div id="whatsapp-aide" class="overlay overlay-centre" hidden>
+    <div class="carte-dialogue">
+      <h2>📲 Envoyer le PDF sur WhatsApp</h2>
+      <p class="note">Votre PDF vient d'être téléchargé. Pour l'envoyer à votre client :</p>
+      <ol class="etapes">
+        <li><strong>1️⃣</strong> Le PDF est dans vos <strong>fichiers / téléchargements</strong>.</li>
+        <li><strong>2️⃣</strong> WhatsApp va s'ouvrir sur la discussion du client.</li>
+        <li><strong>3️⃣</strong> Appuyez sur le <strong>📎 trombone</strong> puis « Document ».</li>
+        <li><strong>4️⃣</strong> Choisissez le PDF téléchargé et envoyez. ✅</li>
+      </ol>
+      <button id="whatsapp-continuer" class="btn-whatsapp grand" type="button">J'ai compris, ouvrir WhatsApp</button>
+      <button id="whatsapp-fermer" class="btn-lien" type="button">Fermer</button>
+    </div>
+  </div>
+
   <!-- Petit message de confirmation (toast) -->
   <div id="toast" class="toast" hidden></div>
 
