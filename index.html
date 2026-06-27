@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Mobile first : on bloque le zoom involontaire mais on garde un rendu lisible -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
+  <meta name="theme-color" content="#0a7d5a" />
+  <meta name="description" content="Outil gratuit pour créer des devis et factures en quelques minutes. Offert par Maoba Marketing Digital." />
+  <title>Mes Devis &amp; Factures — Outil gratuit Maoba</title>
+  <link rel="preconnect" href="https://mllunncdtvapylmgtwec.supabase.co" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ====== ÉCRAN D'ACCUEIL (première utilisation) ====== -->
+  <!-- Demande le minimum : nom + téléphone, pour personnaliser les devis.
+       Cette même information sert aussi de prise de contact pour Maoba. -->
+  <div id="accueil" class="overlay" hidden>
+    <div class="carte-accueil">
+      <div class="logo-maoba">Maoba</div>
+      <h1>Bienvenue 👋</h1>
+      <p class="sous-titre">Créez vos devis et factures en quelques minutes, gratuitement.</p>
+      <p class="aide">Pour commencer, dites-nous qui vous êtes. Ces infos apparaîtront sur vos devis.</p>
+
+      <label for="acc-nom">Nom de votre entreprise</label>
+      <input id="acc-nom" type="text" inputmode="text" placeholder="Ex : Entreprise Camara BTP" autocomplete="organization" />
+
+      <label for="acc-tel">Votre numéro de téléphone</label>
+      <input id="acc-tel" type="tel" inputmode="tel" placeholder="Ex : 624 00 00 00" autocomplete="tel" />
+
+      <p id="acc-erreur" class="erreur" hidden>Merci de remplir le nom et le téléphone.</p>
+
+      <button id="acc-valider" class="btn-principal grand">C'est parti →</button>
+      <p class="mini">Gratuit, sans inscription. Vos devis restent sur votre téléphone.</p>
+    </div>
+  </div>
+
+  <!-- ====== EN-TÊTE ====== -->
+  <header class="entete">
+    <span class="marque">Mes Devis &amp; Factures</span>
+    <button id="btn-mes-devis" class="btn-entete" type="button">📂 Mes devis</button>
+  </header>
+
+  <main id="app">
+
+    <!-- ====== TYPE DE DOCUMENT : Devis / Facture ====== -->
+    <section class="bloc">
+      <div class="bascule" role="group" aria-label="Type de document">
+        <button id="type-devis" class="bascule-btn actif" type="button">Devis</button>
+        <button id="type-facture" class="bascule-btn" type="button">Facture</button>
+      </div>
+    </section>
+
+    <!-- ====== MON ENTREPRISE ====== -->
+    <section class="bloc">
+      <h2>🏢 Mon entreprise</h2>
+      <p class="note">Rempli une seule fois, gardé automatiquement.</p>
+
+      <label for="ent-logo">Logo (facultatif)</label>
+      <div class="ligne-logo">
+        <input id="ent-logo" type="file" accept="image/*" />
+        <img id="apercu-logo" class="apercu-logo" alt="" hidden />
+        <button id="retirer-logo" class="btn-lien" type="button" hidden>Retirer</button>
+      </div>
+
+      <label for="ent-nom">Nom de l'entreprise</label>
+      <input id="ent-nom" type="text" placeholder="Ex : Entreprise Camara BTP" />
+
+      <label for="ent-tel">Téléphone</label>
+      <input id="ent-tel" type="tel" inputmode="tel" placeholder="Ex : 624 00 00 00" />
+
+      <label for="ent-adresse">Adresse / Ville</label>
+      <input id="ent-adresse" type="text" placeholder="Ex : Kaloum, Conakry" />
+    </section>
+
+    <!-- ====== CLIENT ====== -->
+    <section class="bloc">
+      <h2>👤 Client</h2>
+
+      <label for="cli-nom">Nom du client</label>
+      <input id="cli-nom" type="text" placeholder="Ex : Monsieur Diallo" />
+
+      <label for="cli-tel">Téléphone du client</label>
+      <input id="cli-tel" type="tel" inputmode="tel" placeholder="Ex : 620 00 00 00" />
+
+      <label for="cli-adresse">Adresse / Lieu du chantier</label>
+      <input id="cli-adresse" type="text" placeholder="Ex : Ratoma, Conakry" />
+
+      <div class="deux-colonnes">
+        <div>
+          <label id="lbl-numero" for="doc-numero">N° du devis</label>
+          <input id="doc-numero" type="text" />
+        </div>
+        <div>
+          <label for="doc-date">Date</label>
+          <input id="doc-date" type="date" />
+        </div>
+      </div>
+    </section>
+
+    <!-- ====== ARTICLES ====== -->
+    <section class="bloc">
+      <h2>🧱 Articles &amp; prestations</h2>
+      <div id="liste-articles"><!-- lignes injectées par JS --></div>
+      <button id="ajouter-article" class="btn-secondaire grand" type="button">+ Ajouter un article</button>
+    </section>
+
+    <!-- ====== TOTAUX ====== -->
+    <section class="bloc">
+      <h2>🧮 Totaux</h2>
+
+      <div class="ligne-total">
+        <span>Sous-total</span>
+        <span id="affiche-soustotal">0 GNF</span>
+      </div>
+
+      <label for="remise-valeur">Remise (facultatif)</label>
+      <div class="ligne-remise">
+        <input id="remise-valeur" type="number" inputmode="numeric" min="0" placeholder="0" />
+        <div class="bascule petite">
+          <button id="remise-pct" class="bascule-btn actif" type="button">%</button>
+          <button id="remise-gnf" class="bascule-btn" type="button">GNF</button>
+        </div>
+      </div>
+      <div class="ligne-total" id="ligne-remise-affiche" hidden>
+        <span>Remise</span>
+        <span id="affiche-remise">0 GNF</span>
+      </div>
+
+      <div class="ligne-total grand-total">
+        <span>TOTAL</span>
+        <span id="affiche-total">0 GNF</span>
+      </div>
+
+      <label for="acompte-valeur">Acompte demandé (facultatif)</label>
+      <div class="ligne-remise">
+        <input id="acompte-valeur" type="number" inputmode="numeric" min="0" placeholder="0" />
+        <div class="bascule petite">
+          <button id="acompte-pct" class="bascule-btn actif" type="button">%</button>
+          <button id="acompte-gnf" class="bascule-btn" type="button">GNF</button>
+        </div>
+      </div>
+      <div class="ligne-total" id="ligne-acompte-affiche" hidden>
+        <span>Acompte à payer</span>
+        <span id="affiche-acompte">0 GNF</span>
+      </div>
+    </section>
+
+    <!-- ====== CONDITIONS ====== -->
+    <section class="bloc">
+      <h2>📝 Conditions</h2>
+
+      <label for="cond-validite">Validité</label>
+      <input id="cond-validite" type="text" />
+
+      <label for="cond-paiement">Conditions de paiement</label>
+      <input id="cond-paiement" type="text" />
+
+      <label for="cond-delai">Délai d'exécution</label>
+      <input id="cond-delai" type="text" />
+    </section>
+
+    <!-- ====== ACTIONS ====== -->
+    <section class="bloc actions">
+      <button id="btn-pdf" class="btn-principal grand" type="button">⬇️ Télécharger le PDF</button>
+      <button id="btn-whatsapp" class="btn-whatsapp grand" type="button">📲 Envoyer sur WhatsApp</button>
+      <button id="btn-nouveau" class="btn-lien" type="button">+ Nouveau document (effacer le client)</button>
+    </section>
+
+    <footer class="pied">
+      <p>Outil gratuit offert par <strong>Maoba Marketing Digital</strong></p>
+      <p>Besoin d'un site web ou de publicité ? WhatsApp +224 626 16 95 87</p>
+    </footer>
+  </main>
+
+  <!-- ====== HISTORIQUE "MES DEVIS" ====== -->
+  <div id="panneau-historique" class="overlay" hidden>
+    <div class="carte-historique">
+      <div class="entete-panneau">
+        <h2>📂 Mes devis</h2>
+        <button id="fermer-historique" class="btn-fermer" type="button">✕</button>
+      </div>
+      <div id="liste-historique"><!-- injecté par JS --></div>
+    </div>
+  </div>
+
+  <!-- Petit message de confirmation (toast) -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
