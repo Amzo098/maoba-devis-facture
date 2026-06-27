@@ -13,8 +13,22 @@
   --gris-doux: #6b7c77;
   --bord: #d4ddd9;
   --fond: #f4f7f6;
+  --carte: #ffffff;         /* fond des blocs / champs */
   --rouge: #c0392b;
   --rayon: 14px;
+}
+
+/* ---- Thème sombre : on ne redéfinit que les couleurs, tout le reste suit ----
+   Le vert Maoba est gardé comme accent. Les champs restent lisibles de nuit. */
+html[data-theme="dark"] {
+  --vert: #16a974;
+  --vert-fonce: #1fbd83;
+  --vert-clair: #14322a;
+  --gris-texte: #e8efec;
+  --gris-doux: #9fb0aa;
+  --bord: #2c3a35;
+  --fond: #0f1714;
+  --carte: #18231f;
 }
 
 * { box-sizing: border-box; }
@@ -49,6 +63,8 @@ body {
   color: #fff;
 }
 .marque { font-weight: 700; font-size: 18px; }
+.entete-actions { display: flex; align-items: center; gap: 8px; }
+#btn-theme { font-size: 18px; padding: 9px 12px; line-height: 1; }
 .btn-entete {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
@@ -63,7 +79,7 @@ body {
 #app { max-width: 680px; margin: 0 auto; padding: 14px 14px 60px; }
 
 .bloc {
-  background: #fff;
+  background: var(--carte);
   border: 1px solid var(--bord);
   border-radius: var(--rayon);
   padding: 16px;
@@ -88,10 +104,12 @@ input[type="date"] {
   font-size: 17px;        /* >=16px pour éviter le zoom auto iOS/Android */
   border: 1.5px solid var(--bord);
   border-radius: 10px;
-  background: #fff;
+  background: var(--carte);
   color: var(--gris-texte);
 }
 input:focus { outline: none; border-color: var(--vert); }
+/* Le sélecteur de date affiche une petite icône sombre par défaut : on l'éclaircit en mode nuit */
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
 
 .deux-colonnes { display: flex; gap: 10px; }
 .deux-colonnes > div { flex: 1; }
@@ -174,7 +192,7 @@ button { cursor: pointer; font-family: inherit; }
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 12px;
-  background: #fbfdfc;
+  background: var(--carte);
 }
 .article .desc { margin-top: 0; }
 .article-qte-prix { display: flex; gap: 10px; }
@@ -199,7 +217,7 @@ button { cursor: pointer; font-family: inherit; }
 .categorie { display: flex; gap: 6px; margin-top: 10px; }
 .cat-btn {
   border: 1.5px solid var(--bord);
-  background: #fff;
+  background: var(--carte);
   color: var(--gris-doux);
   border-radius: 999px;
   padding: 7px 12px;
@@ -247,7 +265,7 @@ button { cursor: pointer; font-family: inherit; }
    sinon les fenêtres (accueil / historique) resteraient visibles. */
 .overlay[hidden] { display: none; }
 .carte-accueil, .carte-historique {
-  background: #fff;
+  background: var(--carte);
   width: 100%;
   max-width: 680px;
   max-height: 92vh;

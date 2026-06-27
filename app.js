@@ -732,9 +732,43 @@
   });
 
   /* ========================================================
-     13) DÉMARRAGE
+     13) THÈME CLAIR / SOMBRE (préférence gardée sur le téléphone)
+     ======================================================== */
+  var CLE_THEME = "maoba_theme";
+
+  function appliquerTheme(theme) {
+    if (theme === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+      $("btn-theme").textContent = "☀️"; // proposer de revenir au clair
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      $("btn-theme").textContent = "🌙"; // proposer de passer au sombre
+    }
+    localStorage.setItem(CLE_THEME, theme);
+  }
+
+  $("btn-theme").addEventListener("click", function () {
+    var actuel = localStorage.getItem(CLE_THEME) === "dark" ? "dark" : "clair";
+    appliquerTheme(actuel === "dark" ? "clair" : "dark");
+  });
+
+  function chargerTheme() {
+    var enregistre = localStorage.getItem(CLE_THEME);
+    if (enregistre) {
+      appliquerTheme(enregistre);
+    } else if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      // Premier lancement : on respecte le réglage du téléphone.
+      appliquerTheme("dark");
+    } else {
+      appliquerTheme("clair");
+    }
+  }
+
+  /* ========================================================
+     14) DÉMARRAGE
      ======================================================== */
   function demarrer() {
+    chargerTheme();
     remplirChampsEntreprise(chargerEntreprise());
     brancherSauvegardeEntreprise();
     conditionsParDefaut();
