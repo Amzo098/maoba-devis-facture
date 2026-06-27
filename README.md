@@ -21,6 +21,10 @@ petits commerçants de Guinée. Offert par **Maoba Marketing Digital**.
 - 📲 **Envoyer sur WhatsApp** en un clic.
 - 🔄 Basculer entre **Devis** et **Facture** sans tout recommencer.
 - 📂 Retrouver ses anciens documents dans **« Mes devis »** (rouvrir, modifier, dupliquer, re-télécharger).
+- ☁️ **Sauvegarde en ligne optionnelle** (connexion par email) : les 5 premiers documents
+  fonctionnent sans connexion ; au-delà, l'utilisateur se connecte gratuitement avec son
+  email pour ne jamais rien perdre et retrouver ses devis sur n'importe quel téléphone.
+- 🌙 **Mode clair / sombre** au choix.
 
 Chaque PDF porte en bas une petite mention « Outil gratuit Maoba Marketing Digital »
 avec le numéro WhatsApp de l'agence : chaque devis envoyé fait de la publicité pour Maoba.
@@ -44,9 +48,21 @@ pour l'ouvrir comme une vraie application.
   La mise en page est dessinée à la main → texte **net et vectoriel**, pas une capture d'écran floue.
 - **Sauvegarde locale (`localStorage`)** : les infos entreprise et l'historique des devis
   restent sur le téléphone de l'utilisateur. Pas de compte, pas de serveur, ça marche hors-ligne.
-- **Supabase** sert uniquement à enregistrer, au premier lancement, le **nom de l'entreprise + téléphone**
-  (prise de contact pour Maoba). L'insertion seule est autorisée côté client (politique RLS) ;
-  si le réseau est absent, l'outil fonctionne quand même.
+- **Supabase** sert à deux choses :
+  1. enregistrer, au premier lancement, le **nom de l'entreprise + téléphone** (prise de contact pour Maoba) ;
+  2. la **connexion en ligne optionnelle** (Supabase Auth, code par email / lien magique) qui sauvegarde
+     la fiche entreprise et les documents par utilisateur, avec des règles de sécurité (RLS) garantissant
+     qu'un utilisateur n'accède jamais aux données d'un autre.
+  Si le réseau est absent, l'outil reste utilisable hors-ligne (les données locales suffisent).
+- **Pas de variable d'environnement secrète à configurer** : seule la **clé publique** Supabase est utilisée
+  côté navigateur (elle est conçue pour être exposée ; la sécurité repose sur les politiques RLS).
+
+### À propos du code de connexion par email
+La connexion utilise **Supabase Auth**. Par défaut, l'email envoyé contient un **lien de connexion**
+cliquable (qui fonctionne immédiatement, sans configuration). Pour afficher en plus un **code à 6 chiffres**
+dans l'email, il faut ajouter la variable `{{ .Token }}` au modèle d'email « Magic Link » dans le tableau de
+bord Supabase (Authentication → Email Templates). L'application gère **les deux** : l'utilisateur peut soit
+saisir le code, soit cliquer sur le lien.
 - **Hébergement GitHub Pages** (gratuit), déployé automatiquement à chaque mise à jour poussée
   sur la branche `master`. Site en ligne : **https://amzo098.github.io/maoba-devis-facture/**
   (un fichier `netlify.toml` est aussi fourni pour héberger sur Netlify si souhaité).
