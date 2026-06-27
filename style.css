@@ -64,7 +64,11 @@ body {
 }
 .marque { font-weight: 700; font-size: 18px; }
 .entete-actions { display: flex; align-items: center; gap: 8px; }
-#btn-theme { font-size: 18px; padding: 9px 12px; line-height: 1; }
+#btn-theme, #btn-compte { font-size: 18px; padding: 9px 11px; line-height: 1; }
+/* Quand l'utilisateur est connecté, le nuage devient vert (sauvegarde active) */
+#btn-compte.connecte { background: var(--whatsapp); }
+/* Champ du code de connexion : gros chiffres espacés, faciles à lire */
+#conn-code { text-align: center; letter-spacing: 8px; font-size: 24px; font-weight: 700; }
 .btn-entete {
   background: rgba(255, 255, 255, 0.18);
   color: #fff;

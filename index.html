@@ -41,6 +41,8 @@
     <div class="entete-actions">
       <!-- Bouton clair / sombre : change l'apparence selon la préférence -->
       <button id="btn-theme" class="btn-entete" type="button" title="Changer l'apparence" aria-label="Changer l'apparence">🌙</button>
+      <!-- Sauvegarde en ligne (connexion par email, optionnelle) -->
+      <button id="btn-compte" class="btn-entete" type="button" title="Sauvegarder en ligne" aria-label="Sauvegarder en ligne">☁️</button>
       <button id="btn-mes-devis" class="btn-entete" type="button">📂 Mes devis</button>
     </div>
   </header>
@@ -188,6 +190,36 @@
     </div>
   </div>
 
+  <!-- ====== ÉCRAN DE CONNEXION (sauvegarde en ligne) ====== -->
+  <div id="connexion" class="overlay" hidden>
+    <div class="carte-accueil">
+      <div class="logo-maoba">Maoba</div>
+      <h1 id="connexion-titre">Sauvegardez vos documents ☁️</h1>
+      <p class="sous-titre" id="connexion-message">Connectez-vous avec votre email pour retrouver vos devis sur tous vos téléphones, sans jamais rien perdre.</p>
+
+      <!-- Étape 1 : saisie de l'email -->
+      <div id="connexion-etape-email">
+        <label for="conn-email">Votre email</label>
+        <input id="conn-email" type="email" inputmode="email" placeholder="exemple@email.com" autocomplete="email" />
+        <p id="conn-erreur" class="erreur" hidden></p>
+        <button id="conn-envoyer" class="btn-principal grand">Recevoir mon code</button>
+      </div>
+
+      <!-- Étape 2 : saisie du code reçu par email -->
+      <div id="connexion-etape-code" hidden>
+        <p class="aide">Nous avons envoyé un email à <strong id="conn-email-affiche"></strong>.<br>
+          Saisissez le code à 6 chiffres reçu, <em>ou cliquez simplement sur le lien dans l'email</em>.</p>
+        <label for="conn-code">Code à 6 chiffres</label>
+        <input id="conn-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code" />
+        <p id="conn-erreur-code" class="erreur" hidden></p>
+        <button id="conn-valider-code" class="btn-principal grand">Me connecter</button>
+        <button id="conn-renvoyer" class="btn-lien" type="button">Renvoyer un code</button>
+      </div>
+
+      <button id="conn-plus-tard" class="btn-lien" type="button">Plus tard</button>
+    </div>
+  </div>
+
   <!-- ====== BOÎTE DE CONFIRMATION GÉNÉRIQUE ====== -->
   <div id="confirmation" class="overlay overlay-centre" hidden>
     <div class="carte-dialogue">
@@ -219,6 +251,7 @@
   <div id="toast" class="toast" hidden></div>
 
   <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="vendor/supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
