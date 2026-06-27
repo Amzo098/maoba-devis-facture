@@ -47,8 +47,9 @@ pour l'ouvrir comme une vraie application.
 - **Supabase** sert uniquement à enregistrer, au premier lancement, le **nom de l'entreprise + téléphone**
   (prise de contact pour Maoba). L'insertion seule est autorisée côté client (politique RLS) ;
   si le réseau est absent, l'outil fonctionne quand même.
-- **Hébergement Netlify** (gratuit), connecté à ce dépôt GitHub pour un **déploiement automatique**
-  à chaque mise à jour.
+- **Hébergement GitHub Pages** (gratuit), déployé automatiquement à chaque mise à jour poussée
+  sur la branche `master`. Site en ligne : **https://amzo098.github.io/maoba-devis-facture/**
+  (un fichier `netlify.toml` est aussi fourni pour héberger sur Netlify si souhaité).
 
 ## Lancer en local
 
