@@ -58,11 +58,19 @@ pour l'ouvrir comme une vraie application.
   côté navigateur (elle est conçue pour être exposée ; la sécurité repose sur les politiques RLS).
 
 ### À propos du code de connexion par email
-La connexion utilise **Supabase Auth**. Par défaut, l'email envoyé contient un **lien de connexion**
-cliquable (qui fonctionne immédiatement, sans configuration). Pour afficher en plus un **code à 6 chiffres**
-dans l'email, il faut ajouter la variable `{{ .Token }}` au modèle d'email « Magic Link » dans le tableau de
-bord Supabase (Authentication → Email Templates). L'application gère **les deux** : l'utilisateur peut soit
-saisir le code, soit cliquer sur le lien.
+La connexion utilise **Supabase Auth** avec un **code à 6 chiffres** (OTP). Ce choix est volontaire :
+le code ne dépend d'aucun réglage de « Redirect URL » et fonctionne donc partout immédiatement, alors
+qu'un lien magique nécessiterait d'autoriser l'URL du site dans le tableau de bord Supabase.
+
+**Réglage à faire une seule fois** pour que le code apparaisse dans l'email : dans le tableau de bord
+Supabase → **Authentication → Emails → modèle « Magic Link »**, ajouter une ligne contenant la variable
+`{{ .Token }}`, par exemple :
+
+```
+Votre code de connexion Maoba est : {{ .Token }}
+```
+
+Tant que ce réglage n'est pas fait, l'email par défaut ne montre que le lien (inutilisé) et pas le code.
 - **Hébergement GitHub Pages** (gratuit), déployé automatiquement à chaque mise à jour poussée
   sur la branche `master`. Site en ligne : **https://amzo098.github.io/maoba-devis-facture/**
   (un fichier `netlify.toml` est aussi fourni pour héberger sur Netlify si souhaité).

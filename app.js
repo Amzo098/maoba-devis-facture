@@ -937,8 +937,10 @@
 
   function initSupabase() {
     if (!sb && window.supabase) {
+      // detectSessionInUrl:false car on n'utilise plus de lien magique dans l'email,
+      // seulement le code à 6 chiffres. La session reste gardée d'une visite à l'autre.
       sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
       });
     }
     return sb;
@@ -1000,9 +1002,12 @@
     var btn = this, libelle = btn.textContent;
     btn.disabled = true; btn.textContent = "Envoi…";
     emailEnCours = email;
+    // On n'utilise PAS de lien magique (emailRedirectTo) : la connexion se fait
+    // uniquement avec le code à 6 chiffres, qui ne dépend d'aucun réglage de
+    // "Redirect URL" côté Supabase et fonctionne donc partout, tout de suite.
     sb.auth.signInWithOtp({
       email: email,
-      options: { emailRedirectTo: location.href.split("#")[0], shouldCreateUser: true }
+      options: { shouldCreateUser: true }
     }).then(function (res) {
       btn.disabled = false; btn.textContent = libelle;
       if (res.error) {
@@ -1041,7 +1046,7 @@
     if (!emailEnCours || !sb) return;
     sb.auth.signInWithOtp({
       email: emailEnCours,
-      options: { emailRedirectTo: location.href.split("#")[0], shouldCreateUser: true }
+      options: { shouldCreateUser: true }
     }).then(function () { toast("Nouveau code envoyé 📧"); });
   });
 
