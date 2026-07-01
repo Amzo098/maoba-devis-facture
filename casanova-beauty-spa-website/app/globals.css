@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Base globale du site Casanova Beauty & Spa */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #f5f5f5;
+  color: #1a1a1a;
+}
+
+/* Texte en degrade dore, utilise pour les titres forts (effet luxe) */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #ffd700 0%, #b8860b 50%, #ffd700 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Cadre discret dore au survol des cartes de service */
+.card-hover {
+  transition: transform 0.35s ease, box-shadow 0.35s ease;
+}
+.card-hover:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 45px -15px rgba(255, 215, 0, 0.4);
+}
+
+/* Masque le defilement horizontal des carrousels tout en gardant le scroll tactile */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
